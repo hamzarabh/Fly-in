@@ -39,12 +39,13 @@ def gred(width: int, height: int):
 		y1 += 50
 		y2 += 50
 		pygame.draw.line(screen,(200,200,200), (x1, y1), (x2, y2))
-
 dropdown = Dropdown(
     screen, 
-    0, 0,  # x, y
+    0, 2,  # x, y
 	200, 50,  # width , height
     name='select map',  # name
+	fontSize=40,
+	margin=20,
     choices=['map1', 'map2', 'map3', 'map4', "map5"], # choices
     borderRadius=5,
     colour=(0, 150, 100),
@@ -53,22 +54,46 @@ dropdown = Dropdown(
     textHAlign='centre'
 )
 button_run = Button(
-    screen, 210, 0, 200, 50,
+    screen, 210, 2, 200, 50,
     text='Run',
     fontSize=20,
     margin=20,
-    inactiveColour=(0, 255, 0),  
-    pressedColour=(0, 100, 0),   
+    inactiveColour=(51, 255, 51),  
+    pressedColour=(7,125,243),   
     radius=5,
     # onClick=pygame.quit
 	)
+button_run_step = Button(
+	screen,
+	420, 2, # x, y
+	200 , 50, # width , height
+	text='Run step',
+	fontSize=20,
+	margin=20,
+	inactiveColour = (51,255,51),
+	pressedColour=(7,125,243),
+	radius=5,
+	#onClick=
+)
+button_reload = Button(
+	screen,
+	630, 2, # x, y
+	200 , 50, # width , height
+	text='reload',
+	fontSize=20,
+	margin=20,
+	inactiveColour = (255,102,102),
+	pressedColour=(7,125,243),
+	radius=5,
+	#onClick=
+)
 button_close = Button(
-    screen, 420, 0, 200, 50,
+    screen, 840, 2, 200, 50,
     text='Close',
     fontSize=20,
     margin=20,
     inactiveColour=(200, 0, 0),  
-    pressedColour=(150, 0, 0),   
+    pressedColour=(7,125,243),   
     radius=5,
     onClick=close_game
 	)
@@ -102,6 +127,8 @@ while run:
 		if event.type == pygame.QUIT:
 			run = False
 	screen.fill((0,0,0))
+	pygame.draw.rect(screen, (92,92,92),rect= (0,0,width,54),border_top_left_radius=5,border_top_right_radius=5)
+
 
 	pygame_widgets.update(events)
 	for z in zones.values():
