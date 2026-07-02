@@ -201,10 +201,10 @@ def syntax_parser(file):
                                     "`end_hub` must be defined only once")
                     if data["type"] == "conection":
                         if (not data["zone1"] in zone_names):
-                                raise LogicError(f"the zone '{data["zone1"]}'"
+                                raise LogicError(f"the zone '{data['zone1']}'"
                                                      " not defined")
                         if (not data["zone2"] in zone_names):
-                            raise LogicError(f"the zone '{data["zone2"]}'"
+                            raise LogicError(f"the zone '{data['zone2']}'"
                                                     " not defined")
                         for item in res:
                             if (item["type"] == "conection"):
@@ -254,5 +254,5 @@ def syntax_parser(file):
     return (res)
 
 
-# data = syntax_parser("config.txt")
+data = syntax_parser("config.txt")
 # print(data)

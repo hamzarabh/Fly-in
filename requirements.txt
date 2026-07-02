@@ -1,4 +1,4 @@
 webcolors
 pygame
 lark
-pygame-menu
+pygame_widgets

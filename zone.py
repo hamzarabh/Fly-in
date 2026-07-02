@@ -10,6 +10,7 @@ class Zone():
 		self.max_drones = 1
 		self.color = None
 		self.zone = "normal"
+		self.closed = False
 		self.connection = []
 
 
@@ -50,14 +51,14 @@ def create_zones(data: list) -> dict:
 	return zones
 
 
-data = syntax_parser("config.txt")
-zones = create_zones(data)
-for zone in zones.values():
-	print(zone.name)
-	print(zone.type)
-	print(zone.cordi)
-	print(zone.max_drones)
-	print(zone.color)
-	print(zone.connection)
-	print("---------------")
+# data = syntax_parser("config.txt")
+# zones = create_zones(data)
+# for zone in zones.values():
+# 	print(zone.name)
+# 	print(zone.type)
+# 	print(zone.cordi)
+# 	print(zone.max_drones)
+# 	print(zone.color)
+# 	print(zone.connection)
+# 	print("---------------")
 	
