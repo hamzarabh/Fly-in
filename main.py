@@ -51,12 +51,18 @@ def A_start(zones, start, end):
 
 
 
-def simulation():
-
-d = A_start(zones, start, end)
-print("test:",d)
+def simulation(zones, start, end, drones: list):
+	nb_drones = len(drones)
+	torns = []
+	i = 0
+	while i < nb_drones:
+		i += 1
+		torns[str(i)] = 
+		d = A_start(zones, start, end)
+		for zone in d:
+			torns[0]
 # print(start.connection)
-
+['af',rte,yrhhj,hrh]
 
 
 
