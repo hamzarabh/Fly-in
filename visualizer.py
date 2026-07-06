@@ -16,6 +16,7 @@ class Drone():
 		self.path = []
 		self.localIndex = 0
 		self.localXY = ()
+		self.image = pygame.image.load("Copilot_20260630_104836.png")
 	def Move(self) -> None:
 		self.localIndex += 1
 
@@ -157,8 +158,7 @@ def draw_drone(vus: Visualizer):
 		# x = int((x * vus.zoom) + vus.offset_x)
 		# y = int((y * vus.zoom )+ vus.offset_y)
 		font = freetype.SysFont("Arial", int(15*vus.zoom), bold=True)
-		image = pygame.image.load("Copilot_20260630_104836.png")
-		new = pygame.transform.smoothscale(image, (60*vus.zoom,100*vus.zoom))
+		new = pygame.transform.smoothscale(drone.image, (60*vus.zoom,100*vus.zoom))
 		new = pygame.transform.rotate(new, -90)
 		rect = new.get_rect()
 		vus.screen.blit(new,(x - (rect.width // 2),y - (rect.height // 2)),rect)
@@ -214,6 +214,7 @@ def loop(vus: Visualizer):
 	dragging = False
 	current_xy = ()
 	while vus.run:
+		vus.screen.fill((0,0,0))
 		events = pygame.event.get()
 		for event in events:
 			if event.type == pygame.QUIT:
@@ -223,7 +224,7 @@ def loop(vus: Visualizer):
 					vus.zoom *= 1.1
 				elif event.y <= 0 and vus.zoom >= 0.08:
 					vus.zoom /= 1.1
-				print("zoom:",vus.zoom)
+				# print("zoom:",vus.zoom)
 			if event.type == pygame.MOUSEBUTTONDOWN:
 					dragging = True
 			if event.type == pygame.MOUSEBUTTONUP:
@@ -231,7 +232,7 @@ def loop(vus: Visualizer):
 			if event.type == pygame.MOUSEMOTION and dragging:
 				vus.offset_x += event.rel[0]
 				vus.offset_y += event.rel[1]
-		vus.screen.fill((0,0,0))
+		
 		
 		gred(vus);
 		draw_connection(vus);
@@ -254,7 +255,7 @@ def loop(vus: Visualizer):
 		# vus.drones[0].localIndex = 0
 		# for i in vus.drones[0].path[2:]:
 		# 	vus.drones[0].Move()
-		clock.tick(100)
+		#clock.tick(30)
 		# pygame_widgets.draw(screen)
 		pygame.display.update()
 	pygame.quit()
