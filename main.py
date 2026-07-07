@@ -13,7 +13,7 @@ for z in zones.values():
 		end = z
 
 # f(n) = g(n) + h(n)
-def A_start(zones, start, end, torns):
+def A_start(zones, start, end, turns):
 	def manhaten(start_zone):
 		xs, ys = start_zone.cordi
 		xe, ye = end.cordi
@@ -22,16 +22,13 @@ def A_start(zones, start, end, torns):
 	open_list = [(start,0,0,0,[start])]
 	path = [start]
 	while open_list :
-		print("teeesto")
 		a = min(open_list,key= lambda x: x[1])
-		# for i in open_list:
-		# 	print(open_list)
-		# if len(open_list) > 1:
-		# 	return
 		cur_zone, f, g, t, path = a
 		open_list.remove(a)
 		if cur_zone is end:
 			return path
+		if (cur_zone.name, t) in closed_list:
+				continue
 		closed_list.append((cur_zone.name, t))
 		neighbors = cur_zone.connection
 		for neighbor in neighbors:
@@ -41,29 +38,49 @@ def A_start(zones, start, end, torns):
 				next_t = t + 1 
 			elif zone.zone == "restricted":
 				new_g = g + 2
-				next_t = t + 1
+				next_t = t + 2
 			elif zone.zone == "priority":
-				new_g = g + 0
+				new_g = g + 1
 				next_t = t + 1
 			elif zone.zone == "blocked":
 				continue
+			if t+1 < len(turns) and zone in turns[t+1]:
+				continue
+			if next_t < len(turns):
+				if turns[next_t].count(zone) >= zone.max_drones:
+					continue
 			if (zone.name, next_t) in closed_list:
 				continue
-			if t < len(torns) and zone in torns[t]:
-				continue
-			h = manhaten(zone)
+
 			new_path = path.copy()
+			if zone.zone == "restricted":
+				new_path.append(cur_zone)
+			
+			
+			h = manhaten(zone)
+			if zone.zone == "priority":
+				h = h - 2
 			new_path.append(zone)
-			open_list.append((zone, h + new_g, new_g, t+1, new_path))
+			open_list.append((zone, h + new_g, new_g, next_t, new_path))
+		
+		if cur_zone is not end:
+			wait_t = t + 1
+			if cur_zone is start or wait_t >= len(turns) or turns[wait_t].count(cur_zone) < cur_zone.max_drones:
+				if (cur_zone, wait_t) not in closed_list:
+					h = manhaten(cur_zone)
+					new_g = g + 1 
+					new_path = path.copy()
+					new_path.append(cur_zone)
+					open_list.append((cur_zone, h+new_g, new_g, wait_t, new_path))
 
 
 
 def simulation(zones, start, end, nb_drones: int):
-	torns = [[]]
+	turns = [[]]
 	paths = []
 	p1 = []
 	for j in range(nb_drones):
-		p = A_start(zones, start, end, torns)
+		p = A_start(zones, start, end, turns)
 		if j == 0:
 			p1 = p
 		if not p:
@@ -71,9 +88,9 @@ def simulation(zones, start, end, nb_drones: int):
 			continue
 		paths.append(p)
 		for i, zone in enumerate(p):
-			if i >= len(torns):
-				torns.append([])
-			torns[i].append(zone)
+			if i >= len(turns):
+				turns.append([])
+			turns[i].append(zone)
 
 	return paths
 
@@ -85,17 +102,20 @@ def Create_drones(nb_drones: int,paths: list):
 	drones = []
 	for i, path in zip(range(1,nb_drones+1),paths):
 		drone = Drone("D"+str(i))
-		drone.path = path
+		pi = []
+		for z in path:
+			pi.append(z.cordi)
+		drone.path = pi
 		drones.append(drone)
 	return drones
 
 
-d = A_start(zones, start, end)
+# d = A_start(zones, start, end)
 
 # data = syntax_parser("config.txt")
 nb_drons = data[0]['nb']
 # zones = create_zones(data)
-drones = Create_drones()
+
 # d1 = Drone('D1')
 # d2 = Drone('D2')
 # d1.path = [(0,0),(0,1),(2,1),(1,1)]
@@ -105,9 +125,16 @@ drones = Create_drones()
 
 
 
-drones = Create_drones(nb_drons, [d,d])
+# drones = Create_drones(nb_drons, [d,d])
+
+paths = simulation(zones, start, end, nb_drons)
+drones = Create_drones(nb_drons, paths)
 v1 = Visualizer(zones,drones)
 loop(v1)
 
-# paths = simulation(zones, start, end, nb_drons)
-# print(paths)
+for p in paths:
+	print("[",end="")
+	for i in p :
+		print(i.name)
+	print("]", end="")
+	

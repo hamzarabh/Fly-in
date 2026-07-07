@@ -35,6 +35,7 @@ class Visualizer():
 		self.offset_x = 0
 		self.offset_y = 0
 		self.move = False
+		self.turns = 0
 		self.start()
 	def start(self):
 		for drone in self.drones:
@@ -125,8 +126,8 @@ class Visualizer():
 def move_drone(vus: Visualizer):
 	for drone in vus.drones:
 		local = drone.localIndex
-		# if local >= len(drone.path):
-		# 	break
+		if local >= len(drone.path):
+			local = len(drone.path) - 1
 		x, y  = drone.path[local]
 		x, y = vus.Calcul_XY(x, y)
 		cuX, cuY = drone.localXY
