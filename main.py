@@ -14,85 +14,94 @@ for z in zones.values():
 
 # f(n) = g(n) + h(n)
 def A_start(zones, start, end, turns):
-	def manhaten(start_zone):
-		xs, ys = start_zone.cordi
-		xe, ye = end.cordi
-		return (abs(xe - xs) + abs(ye - ys))
-	closed_list = []
-	open_list = [(start,0,0,0,[start])]
-	path = [start]
-	while open_list :
-		a = min(open_list,key= lambda x: x[1])
-		cur_zone, f, g, t, path = a
-		open_list.remove(a)
-		if cur_zone is end:
-			return path
-		if (cur_zone.name, t) in closed_list:
-				continue
-		closed_list.append((cur_zone.name, t))
-		neighbors = cur_zone.connection
-		for neighbor in neighbors:
-			zone = zones[neighbor[0]]
-			if zone.zone == "normal":
-				new_g = g + 1
-				next_t = t + 1 
-			elif zone.zone == "restricted":
-				new_g = g + 2
-				next_t = t + 2
-			elif zone.zone == "priority":
-				new_g = g + 1
-				next_t = t + 1
-			elif zone.zone == "blocked":
-				continue
-			if t+1 < len(turns) and zone in turns[t+1]:
-				continue
-			if next_t < len(turns):
-				if turns[next_t].count(zone) >= zone.max_drones:
-					continue
-			if (zone.name, next_t) in closed_list:
-				continue
+    def manhaten(start_zone):
+        xs, ys = start_zone.cordi
+        xe, ye = end.cordi
+        return (abs(xe - xs) + abs(ye - ys))
+        
+    closed_list = []
+    open_list = [(start, 0, 0, 0, [start])]
+    
+    while open_list:
+        best_idx = min(range(len(open_list)), key=lambda i: open_list[i][1])
+        cur_zone, f, g, t, path = open_list.pop(best_idx)
 
-			new_path = path.copy()
-			if zone.zone == "restricted":
-				new_path.append(cur_zone)
-			
-			
-			h = manhaten(zone)
-			if zone.zone == "priority":
-				h = h - 2
-			new_path.append(zone)
-			open_list.append((zone, h + new_g, new_g, next_t, new_path))
-		
-		if cur_zone is not end:
-			wait_t = t + 1
-			if cur_zone is start or wait_t >= len(turns) or turns[wait_t].count(cur_zone) < cur_zone.max_drones:
-				if (cur_zone, wait_t) not in closed_list:
-					h = manhaten(cur_zone)
-					new_g = g + 1 
-					new_path = path.copy()
-					new_path.append(cur_zone)
-					open_list.append((cur_zone, h+new_g, new_g, wait_t, new_path))
+        if cur_zone is end:
+            return path
+            
+        if (cur_zone.name, t) in closed_list:
+            continue
+        closed_list.append((cur_zone.name, t))
+        
+        neighbors = cur_zone.connection
+        for neighbor in neighbors:
+            zone = zones[neighbor[0]]
+            
+            if zone.zone == "normal":
+                new_g = g + 1
+                next_t = t + 1 
+            elif zone.zone == "restricted":
+                new_g = g + 2
+                next_t = t + 2  
+            elif zone.zone == "priority":
+                new_g = g + 1
+                next_t = t + 1
+            elif zone.zone == "blocked":
+                continue
 
+            if zone is not start and zone is not end:
+                if next_t < len(turns):
+                    if turns[next_t].count(zone.name) >= zone.max_drones:
+                        continue
+            
+            if (zone.name, next_t) in closed_list:
+                continue
+
+            new_path = path.copy()
+            if zone.zone == "restricted":
+                new_path.append(cur_zone)
+            
+            h = manhaten(zone)
+            if zone.zone == "priority":
+                h = h - 2
+                
+            new_path.append(zone)
+            open_list.append((zone, h + new_g, new_g, next_t, new_path))
+        
+        if cur_zone is not end:
+            wait_t = t + 1
+            if cur_zone is start or wait_t >= len(turns) or turns[wait_t].count(cur_zone.name) < cur_zone.max_drones:
+                if (cur_zone.name, wait_t) not in closed_list:
+                    h = manhaten(cur_zone) 
+                    new_g = g + 1
+                    new_path = path.copy()
+                    new_path.append(cur_zone)
+                    open_list.append((cur_zone, h + new_g, new_g, wait_t, new_path))
+                    
+    return None
 
 
 def simulation(zones, start, end, nb_drones: int):
-	turns = [[]]
-	paths = []
-	p1 = []
-	for j in range(nb_drones):
-		p = A_start(zones, start, end, turns)
-		if j == 0:
-			p1 = p
-		if not p:
-			paths.append(p1)
-			continue
-		paths.append(p)
-		for i, zone in enumerate(p):
-			if i >= len(turns):
-				turns.append([])
-			turns[i].append(zone)
+    turns = [[] for _ in range(500)] 
+    paths = []
+    p1 = []
+    
+    for j in range(nb_drones):
+        p = A_start(zones, start, end, turns)
+        if j == 0:
+            p1 = p
+        if not p:
+            paths.append(p1)
+            continue
+            
+        paths.append(p)
+        
+        for i, zone in enumerate(p):
+            while i >= len(turns):
+                turns.append([])
+            turns[i].append(zone.name)
 
-	return paths
+    return paths
 
 # print(start.connection)
 
@@ -135,6 +144,7 @@ loop(v1)
 for p in paths:
 	print("[",end="")
 	for i in p :
-		print(i.name)
-	print("]", end="")
+		print(i.name, end= " ")
+	print("]",)
 	
+
