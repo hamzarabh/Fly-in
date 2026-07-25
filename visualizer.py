@@ -17,6 +17,7 @@ class Drone():
 		self.localIndex = 0
 		self.localXY = ()
 		self.image = pygame.image.load("Copilot_20260630_104836.png")
+
 	def Move(self) -> None:
 		self.localIndex += 1
 
@@ -36,6 +37,7 @@ class Visualizer():
 		self.offset_y = 0
 		self.move = False
 		self.turns = 0
+		self.auto_run = False
 		self.start()
 	def start(self):
 		for drone in self.drones:
@@ -101,8 +103,8 @@ class Visualizer():
 		    text='Close',
 		    fontSize=20,
 		    margin=20,
-		    inactiveColour=(200, 0, 0),  
-		    pressedColour=(7,125,243),   
+		    inactiveColour=(200, 0, 0),
+		    pressedColour=(7,125,243),
 		    radius=5,
 		    onClick=self.close_game
 			)
@@ -127,13 +129,10 @@ class Visualizer():
 
 
 	def Run(self):
-		while(self.drones[-1].localIndex >= len(self.drones[-1].path) - 1):
-			self.move = True
-			self.turns += 1
-			for drone in self.drones:
-				drone.localIndex += 1
+		self.auto_run = True
 
 def move_drone(vus: Visualizer):
+    finished = True
     for drone in vus.drones:
         local = drone.localIndex
         if local >= len(drone.path):
@@ -144,32 +143,47 @@ def move_drone(vus: Visualizer):
         if not vus.move:
             drone.localXY = (target_x, target_y)
             continue
-            
-        cuX, cuY = drone.localXY
-        if (target_x, target_y) == (cuX, cuY):
-            vus.move = False
-            continue
-
-        speed = max(1, int(5 * vus.zoom))
         
-        if abs(cuX - target_x) <= speed:
-            cuX = target_x
+        cuX, cuY = drone.localXY
+        if (drone.localXY > (target_x, target_y)):
+        	drone.localXY = (target_x, target_y)
+
+        if drone.localXY != (target_x, target_y):
+            finished = False
+		
+        # speed = max(1, int(5 * vus.zoom))
+        
+        # if abs(cuX - target_x) <= speed:
+        #     cuX = target_x
+        # elif cuX > target_x:
+        #     cuX -= speed
+        # else:
+        #     cuX += speed
+            
+        # if abs(cuY - target_y) <= speed:
+        #     cuY = target_y
+        # elif cuY > target_y:
+        #     cuY -= speed
+        # else:
+        #     cuY += speed
+            
+        # drone.localXY = (cuX, cuY)
+        cuX, cuY = drone.localXY
+
+        if cuX < target_x:
+            cuX += 10
         elif cuX > target_x:
-            cuX -= speed
-        else:
-            cuX += speed
-            
-        if abs(cuY - target_y) <= speed:
-            cuY = target_y
+            cuX -= 10
+        
+        if cuY < target_y:
+            cuY += 10
         elif cuY > target_y:
-            cuY -= speed
-        else:
-            cuY += speed
-            
+            cuY -= 10
         drone.localXY = (cuX, cuY)
+  
+    if finished:
+          vus.move = False
 
-
-	
 
 
 
@@ -269,10 +283,11 @@ def loop(vus: Visualizer):
 		vus.button_run_step.draw()
 		vus.button_reload.draw()
 		vus.button_close.draw()
-		if vus.drones[-1].localIndex < len(vus.drones[-1].path) - 2 :
-			print(f"Em: {vus.drones[0].localIndex}")
+		if vus.drones[-1].localIndex < len(vus.drones[-1].path) - 2 and not vus.auto_run:
 			vus.button_run_step.onClick = vus.Movedrones
 		vus.button_run.onClick = vus.Run
+		if vus.auto_run and not vus.move:
+			vus.Movedrones()
 
 		
 		move_drone(vus)
