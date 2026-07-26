@@ -75,20 +75,77 @@ class ConnectionItem(QGraphicsLineItem):
 class DroneItem(QGraphicsObject):
     def __init__(self, scene, image_path):
         super().__init__()
+        self.pixmap = QPixmap(image_path)
         print(self.pixmap.width(), self.pixmap.height())
         scene.addItem(self)
+        self.setTransformOriginPoint(self.boundingRect().center())
+        self.setRotation(90)
+        self.setScale(0.1)
+        
 
 
     def boundingRect(self):
         return QRectF(self.pixmap.rect())
 
     def paint(self, painter, option, widget):
-        # painter.save()
-        # painter.translate(self.boundingRect().center())
-        # painter.rotate(90)
-        # painter.translate(-self.boundingRect().center())
         painter.drawPixmap(0,0, self.pixmap)
-        # painter.restore()
+
+class MapView(QGraphicsView):
+    def __init__(self,scene):
+
+        self.camera_x = 0
+        self.camera_y = 0
+        self.zoom  = 1.0
+        self.dragging = False
+        self.last_pos = None
+        super().__init__(scene)
+
+        self.setRenderHint(QPainter.Antialiasing)
+        self.setRenderHint(QPainter.SmoothPixmapTransform)
+        self.setViewportUpdateMode(QGraphicsView.FullViewportUpdate)
+
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+    def UpdateCamera(self):
+        self.resetTransform()
+        self.scale(self.zoom, self.zoom)
+        self.centerOn(self.camera_x, self.camera_y)
+
+    def wheelEvent(self, event):
+        if event.angleDelta().y() > 0:
+            self.zoom *= 1.15
+        else:
+            self.zoom /= 1.15
+        self.UpdateCamera()
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.dragging = True
+            self.last_pos = event.position()
+            self.setCursor(Qt.ClosedHandCursor)
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if self.dragging:
+            delta = event.position() - self.last_pos
+            self.camera_x -= delta.x() / self.zoom
+            self.camera_y -= delta.y() / self.zoom
+            self.UpdateCamera()
+            self.last_pos = event.position()
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.dragging = False
+            self.setCursor(Qt.ArrowCursor)
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
+
+
+
 
 class MainWindow(QMainWindow):
 
@@ -114,7 +171,8 @@ class MainWindow(QMainWindow):
         toolbar.addWidget(self.reload_button)
         toolbar.addWidget(self.close_button)
         self.scene = QGraphicsScene()
-        self.view = QGraphicsView(self.scene)
+        self.scene.setSceneRect(-5000, -5000, 10000, 10000)
+        self.view = MapView(self.scene)
         self.view.setRenderHint(QPainter.Antialiasing | QPainter.SmoothPixmapTransform)
         main_layout.addWidget(self.view)
 
@@ -139,6 +197,6 @@ app = QApplication(sys.argv)
 window = MainWindow()
 window.end.setPos(0,10)
 window.start.setPos(900,10)
-window.view.scale(2,2)
+# window.view.scale(1.2, 1.2)
 window.show()
 sys.exit(app.exec())
