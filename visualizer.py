@@ -1,312 +1,445 @@
+import os
+os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
+
 import pygame
 import pygame.freetype as freetype
 import pygame_widgets
 from pygame_widgets.dropdown import Dropdown
 from pygame_widgets.button import Button
-from typing import Any
+from typing import Any, List, Optional
 from zone import Zone
 from parser import syntax_parser
-from zone import create_zones , Zone
+from zone import create_zones, Zone
 
 
 clock = pygame.time.Clock()
-class Drone():
-	def __init__(self, id:str):
-		self.id = id
-		self.path = []
-		self.localIndex = 0
-		self.localXY = ()
-		self.image = pygame.image.load("Copilot_20260630_104836.png")
-
-	def Move(self) -> None:
-		self.localIndex += 1
 
 
-class Visualizer():
-	def __init__(self, zones:list, drones: list):
-		pygame.init()
-		info = pygame.display.Info()
-		self.width = info.current_w
-		self.height = info.current_h
-		self.zones = zones
-		self.drones = drones
-		self.screen = pygame.display.set_mode((self.width, self.height))
-		self.run = True
-		self.zoom = 1
-		self.offset_x = 0
-		self.offset_y = 0
-		self.move = False
-		self.turns = 0
-		self.auto_run = False
-		self.start()
-	def start(self):
-		for drone in self.drones:
-			drone.localXY = self.Calcul_XY(
-											drone.path[0][0],
-							   				drone.path[0][1])
+class Drone:
+    def __init__(self, id: str, zones: dict, start: Zone, end: Zone) -> None:
+        self.id = id
+        self.path: List[Zone] = []
+        self.localIndex: int = 0
+        self.localXY: tuple = ()
+        self.zones = zones
+        self.start = start
+        self.end = end
+        self.image = pygame.image.load("Copilot_20260630_104836.png")
+
+    def FindPath(self) -> bool:
+        self.path = self.dijkstra()
+        if self.path is None:
+            return False
+
+        
+        # تمييز المسار المختار كـ "مزدحم" للطائرات اللاحقة
+        for zone in self.path:
+            if zone is not self.start and zone is not self.end:
+                zone.planned = getattr(zone, 'planned', 0) + 1
+        return True
+
+    def dijkstra(self) -> Optional[List[Zone]]:
+        """Simple Dijkstra algorithm with Soft Penalty."""
+        
+        # العنصر: (g, zone, path)
+        open_list: List[tuple] = [(0, self.start, [self.start])]
+        closed: set = set()
+
+        while open_list:
+            # البحث عن العنصر صاحب أقل تكلفة (g)
+            best_zone = min(open_list, key=lambda x: x[0])
+            open_list.remove(best_zone)
+
+            g, cur_zone, path = best_zone
+
+            if cur_zone is self.end:
+                return path
+
+            if cur_zone.name in closed:
+                continue
+            closed.add(cur_zone.name)
+
+            for neighbor in cur_zone.connection:
+                zone = self.zones[neighbor[0]]
+
+                if zone.zone == "normal":
+                    new_g = g + 1
+                elif zone.zone == "restricted":
+                    new_g = g + 2
+                elif zone.zone == "priority":
+                    new_g = g + 1
+                elif zone.zone == "blocked":
+                    continue
+
+                if zone.name in closed:
+                    continue
+
+                # --- العقوبة الناعمة (Soft Penalty) ---
+                planned_count = getattr(zone, 'planned', 0)
+                if planned_count > 0:
+                    new_g += planned_count * 3
+
+                if zone.zone == "priority":
+                    new_g -= 1
+                new_path = path.copy()
+                if zone.zone == "restricted":
+                    new_path.append(zone)  # إضافة مرتين للمناطق المقيدة
+                new_path.append(zone)
+
+                open_list.append((new_g, zone, new_path))
+
+        return None
 
 
-		self.dropdown = Dropdown(
-		    self.screen,
-		    0, 2,  # x, y
-			200, 50,  # width , height
-		    name='select map',  # name
-			fontSize=30,
-			margin=20,
-		    choices=['map1', 'map2', 'map3', 'map4', "map5"], # choices
-		    borderRadius=5,
-		    colour=(0, 150, 100),
-		    textColour=(0, 0, 0),
-		    direction='down',
-		    textHAlign='centre'
-		)
+class Visualizer:
+    def __init__(self, zones: list, drones: list) -> None:
+        pygame.init()
+        info = pygame.display.Info()
+        self.selected_map = None
+        self.width = info.current_w
+        self.height = info.current_h
+        self.zones = zones
+        self.drones = drones
+        self.screen = pygame.display.set_mode((self.width, self.height))
+        self.run = True
+        self.zoom = 1
+        self.offset_x = 0
+        self.offset_y = 0
+        self.move = False
+        self.turns = 0
+        self.auto_run = False
+        self.start()
 
-		self.button_run = Button(
-		    self.screen, 210, 2, 200, 50,
-		    text='Run',
-		    fontSize=20,
-		    margin=20,
-		    inactiveColour=(51, 255, 51),  
-		    pressedColour=(7,125,243),   
-		    radius=5,
-		    # onClick=pygame.quit
-			)
+    def load_map(self):
+        try:
+            data = syntax_parser(f"maps/{self.selected_map}.txt")
+            nb_drons = data[0]['nb']
+            
+            self.zones = create_zones(data)
+            
+            start = None
+            end = None
+            for z in self.zones.values():
+                if z.type == "start_hub":
+                    start = z
+                if z.type == "end_hub":
+                    end = z
+                    
+            self.drones = []
+            for i in range(nb_drons):
+                drone = Drone(f"D{i+1}", self.zones, start, end)
+                self.drones.append(drone)
+                
+            self.turns = 0
+            self.auto_run = False
+            self.move = False
+            
+            self.start()
+            
+        except Exception as e:
+            print(f"Error loading map: {e}")
 
-		self.button_run_step = Button(
-			self.screen,
-			420, 2, # x, y
-			200 , 50, # width , height
-			text='Run step',
-			fontSize=20,
-			margin=20,
-			inactiveColour = (51,255,51),
-			pressedColour=(7,125,243),
-			radius=5,
-			#onClick=
-		)
+    def start(self) -> None:
+        # تهيئة counter و planned لكل المناطق
+        for z in self.zones.values():
+            z.counter = 0
+            z.planned = 0
 
-		self.button_reload = Button(
-			self.screen,
-			630, 2, # x, y
-			200 , 50, # width , height
-			text='reload',
-			fontSize=20,
-			margin=20,
-			inactiveColour = (255,102,102),
-			pressedColour=(7,125,243),
-			radius=5,
-			#onClick=
-		)
+        # --- الخطوة 1: البحث عن أفضل 3 مسارات باستخدام طائرات استكشافية ---
+        scout_paths: List[List[Zone]] = []
+        for i in range(2):
+            scout_drone = Drone(f"scout{i}", self.zones, self.drones[0].start, self.drones[0].end)
+            if scout_drone.FindPath():
+                scout_paths.append(scout_drone.path)
+            else:
+                break  # إذا لم يجد مساراً آخر، نتوقف
 
-		self.button_close = Button(
-		    self.screen, 840, 2, 200, 50,
-		    text='Close',
-		    fontSize=20,
-		    margin=20,
-		    inactiveColour=(200, 0, 0),
-		    pressedColour=(7,125,243),
-		    radius=5,
-		    onClick=self.close_game
-			)
-	def close_game(self):
-		self.run = False
-	def Movedrones(self):
-		if self.drones[-1].localIndex >= len(self.drones[-1].path) - 1:
-			return None
-		self.move = True
-		self.turns += 1
-		for drone in self.drones:
-			drone.localIndex += 1
-		return None
-	def Calcul_XY(self, x: int, y: int)->tuple:
-		x += 1
-		y += 1
-		x *= 200
-		y *= 200
-		x = int((x * self.zoom) + self.offset_x)
-		y = int((y * self.zoom )+ self.offset_y)
-		return (x,y)
+        # تصفير العقوبات قبل بدء المحاكاة الحقيقية
+        for z in self.zones.values():
+            z.planned = 0
+
+        # --- الخطوة 2: توزيع الطائرات الحقيقية على المسارات بالتناوب ---
+        if scout_paths:
+            path_idx = 0  # يبدأ بالمسار الأول
+            num_paths = len(scout_paths)
+            
+            for drone in self.drones:
+                # إعطاء المسار الحالي للطائرة
+                drone.path = scout_paths[path_idx].copy()
+                drone.localIndex = 0
+                drone.localXY = self.Calcul_XY(
+                    drone.path[0].cordi[0],
+                    drone.path[0].cordi[1]
+                )
+                
+                path_idx += 1
+                
+                if path_idx >= num_paths:
+                    path_idx = 0
+
+        # تهيئة عداد البداية
+        if self.drones:
+            self.drones[0].start.counter = len(self.drones)
+
+        # --- إعداد واجهة المستخدم ---
+        self.dropdown = Dropdown(
+            self.screen, 0, 2, 200, 50,
+            name='select map', fontSize=30, margin=20,
+            choices=['01_linear_path', '02_simple_fork', '03_basic_capacity', '01_dead_end_trap', '02_circular_loop','03_priority_puzzle','01_maze_nightmare','02_capacity_hell','03_ultimate_challenge','01_the_impossible_dream'],
+            borderRadius=5, colour=(0, 150, 100),
+            textColour=(0, 0, 0), direction='down', textHAlign='centre'
+        )
+
+        self.button_run = Button(
+            self.screen, 210, 2, 200, 50,
+            text='Run', fontSize=20, margin=20,
+            inactiveColour=(51, 255, 51), pressedColour=(7, 125, 243), radius=5,
+        )
+
+        self.button_run_step = Button(
+            self.screen, 420, 2, 200, 50,
+            text='Run step', fontSize=20, margin=20,
+            inactiveColour=(51, 255, 51), pressedColour=(7, 125, 243), radius=5,
+        )
+
+        self.button_reload = Button(
+            self.screen, 630, 2, 200, 50,
+            text='reload', fontSize=20, margin=20,
+            inactiveColour=(255, 102, 102), pressedColour=(7, 125, 243), radius=5,
+             onClick=self.reload
+        )
+
+        self.button_close = Button(
+            self.screen, 840, 2, 200, 50,
+            text='Close', fontSize=20, margin=20,
+            inactiveColour=(200, 0, 0), pressedColour=(7, 125, 243), radius=5,
+            onClick=self.close_game
+        )
+    def reload(self):
+        self.turns = 0
+        self.auto_run = False
+        self.move = False
+        self.start()
+    
+    def close_game(self) -> None:
+        self.run = False
+
+    def Movedrones(self) -> None:
+        moved = False
+        link_capacity = dict()
+        
+        for drone in self.drones:
+            if not drone.path:
+                continue
+
+            if drone.localIndex < len(drone.path) - 1:
+                old_zone = drone.path[drone.localIndex]
+                new_zone = drone.path[drone.localIndex + 1]
+
+                
+                if old_zone is new_zone:
+                    drone.localIndex += 1
+                    moved = True
+                    continue
+
+                # البحث عن سعة الاتصال بشكل صحيح
+                max_link_capacity = 1
+                for zone_name, capacity in old_zone.connection:
+                    if zone_name == new_zone.name:
+                        max_link_capacity = capacity
+                        break
+
+                # التحقق من سعة المنطقة الوجهة
+                if new_zone is not drone.end and new_zone is not drone.start:
+                    if getattr(new_zone, 'counter', 0) >= new_zone.max_drones:
+                        continue  # المنطقة ممتلئة، انتظر
+
+                # التحقق من سعة الاتصال
+                if link_capacity.get((old_zone.name, new_zone.name), 0) >= max_link_capacity:
+                    continue  # الاتصال ممتلئ، انتظر
+
+                # تسجيل استخدام الاتصال في هذا الدور
+                link_capacity[(old_zone.name, new_zone.name)] = link_capacity.get((old_zone.name, new_zone.name), 0) + 1 
+
+                # تحديث العدادات
+                old_zone.counter = getattr(old_zone, 'counter', 0) - 1
+                new_zone.counter = getattr(new_zone, 'counter', 0) + 1
+                
+                drone.localIndex += 1
+                moved = True
+
+        if moved:
+            self.move = True
+            self.turns += 1
+
+    def Calcul_XY(self, x: int, y: int) -> tuple:
+        x += 1
+        y += 1
+        x *= 200
+        y *= 200
+        x = int((x * self.zoom) + self.offset_x)
+        y = int((y * self.zoom) + self.offset_y)
+        return (x, y)
+
+    def Run(self) -> None:
+        self.auto_run = True
 
 
-	def Run(self):
-		self.auto_run = True
-
-def move_drone(vus: Visualizer):
+def move_drone(vus: Visualizer) -> None:
     finished = True
+    speed = 10
+
     for drone in vus.drones:
+        if not drone.path:
+            continue
+
         local = drone.localIndex
         if local >= len(drone.path):
             local = len(drone.path) - 1
-            
-        target_x, target_y = vus.Calcul_XY(drone.path[local][0], drone.path[local][1])
-        
+
+        target_x, target_y = vus.Calcul_XY(
+            drone.path[local].cordi[0],
+            drone.path[local].cordi[1]
+        )
+
         if not vus.move:
             drone.localXY = (target_x, target_y)
             continue
-        
+
         cuX, cuY = drone.localXY
-        if (drone.localXY > (target_x, target_y)):
-        	drone.localXY = (target_x, target_y)
+
+        if abs(cuX - target_x) <= speed:
+            cuX = target_x
+        elif cuX < target_x:
+            cuX += speed
+        else:
+            cuX -= speed
+
+        if abs(cuY - target_y) <= speed:
+            cuY = target_y
+        elif cuY < target_y:
+            cuY += speed
+        else:
+            cuY -= speed
+
+        drone.localXY = (cuX, cuY)
 
         if drone.localXY != (target_x, target_y):
             finished = False
-		
-        # speed = max(1, int(5 * vus.zoom))
-        
-        # if abs(cuX - target_x) <= speed:
-        #     cuX = target_x
-        # elif cuX > target_x:
-        #     cuX -= speed
-        # else:
-        #     cuX += speed
-            
-        # if abs(cuY - target_y) <= speed:
-        #     cuY = target_y
-        # elif cuY > target_y:
-        #     cuY -= speed
-        # else:
-        #     cuY += speed
-            
-        # drone.localXY = (cuX, cuY)
-        cuX, cuY = drone.localXY
 
-        if cuX < target_x:
-            cuX += 10
-        elif cuX > target_x:
-            cuX -= 10
-        
-        if cuY < target_y:
-            cuY += 10
-        elif cuY > target_y:
-            cuY -= 10
-        drone.localXY = (cuX, cuY)
-  
     if finished:
-          vus.move = False
+        vus.move = False
 
 
+def draw_drone(vus: Visualizer) -> None:
+    for drone in vus.drones:
+        if not drone.path or not drone.localXY:
+            continue
+
+        x, y = drone.localXY
+        if y < 60 or y > vus.height + 100 or x < 45 or x > vus.width + 100:
+            continue
+        font = freetype.SysFont("Arial", int(15 * vus.zoom), bold=True)
+        new = pygame.transform.smoothscale(drone.image, (int(60 * vus.zoom), int(100 * vus.zoom)))
+        new = pygame.transform.rotate(new, -90)
+        rect = new.get_rect()
+        vus.screen.blit(new, (x - (rect.width // 2), y - (rect.height // 2)))
+        font.render_to(vus.screen, (x - 20, y - 20), drone.id, (255, 255, 255))
 
 
-def draw_drone(vus: Visualizer):
-	for drone in vus.drones:
-		x, y = drone.localXY
-		# x = int((x * vus.zoom) + vus.offset_x)
-		# y = int((y * vus.zoom )+ vus.offset_y)
-		font = freetype.SysFont("Arial", int(15*vus.zoom), bold=True)
-		new = pygame.transform.smoothscale(drone.image, (60*vus.zoom,100*vus.zoom))
-		new = pygame.transform.rotate(new, -90)
-		rect = new.get_rect()
-		vus.screen.blit(new,(x - (rect.width // 2),y - (rect.height // 2)),rect)
-		font.render_to(vus.screen, (x- 20, y - int((20))),drone.id,(255,255,255))
+def gred(vus: Visualizer) -> None:
+    x1, y1, x2, y2 = 0, 54, 0, vus.height
+    
+    for _ in range(0, vus.width, 70):
+        x1 += 70
+        x2 += 70
+        pygame.draw.line(vus.screen, (50, 50, 50), (x1, y1), (x2, y2))
+    x1, y1, x2, y2 = 0, 54, vus.width, 54
+    for _ in range(0, vus.height, 70):
+        y1 += 70
+        y2 += 70
+        pygame.draw.line(vus.screen, (50, 50, 50), (x1, y1), (x2, y2))
 
 
-def gred(vus: Visualizer):
-	x1 = 0
-	y1 = 54
-	x2 = 0
-	y2 = vus.height
-	for _ in range(0, vus.width,70):
-		x1 += 70
-		x2 += 70
-		pygame.draw.line(vus.screen,(200,200,200), (x1, y1), (x2, y2))
-	x1 = 0
-	y1 = 54
-	x2 = vus.width
-	y2 = 54
-	for _ in range(0, vus.height,70):
-		y1 += 70
-		y2 += 70
-		pygame.draw.line(vus.screen,(200,200,200), (x1, y1), (x2, y2))
+def draw_connection(vus: Visualizer) -> None:
+    for zone in vus.zones.values():
+        x, y = vus.Calcul_XY(zone.cordi[0], zone.cordi[1])
+        if y < 40 or y > vus.height + 100 or x < 45 or x > vus.width + 100:
+            continue
+        for z_conn in zone.connection:
+            x2, y2 = vus.Calcul_XY(vus.zones[z_conn[0]].cordi[0], vus.zones[z_conn[0]].cordi[1])
+            pygame.draw.line(vus.screen, (150, 150, 255), (x, y), (x2, y2), 5)
 
 
-def draw_connection(vus: Visualizer):
-	for zone in vus.zones.values():
-		x, y = zone.cordi
-		x , y = vus.Calcul_XY(x,y)
-		for z_conn in zone.connection:
-			x2 , y2 = vus.zones[z_conn[0]].cordi
-			x2 , y2 = vus.Calcul_XY(x2,y2)
-			pygame.draw.line(vus.screen,(150,150,255), (x, y), (x2, y2),5)
-
-def draw_zone(zone: Zone, vus: Visualizer):
-	zone_surface = (zone.max_drones * 5 ) + 1
-	x, y = zone.cordi
-	x , y = vus.Calcul_XY(x,y)
-	font = freetype.SysFont("Arial", int(15*vus.zoom), bold=True)
-	rec = font.get_rect(zone.name, size=15*vus.zoom)
-	pygame.draw.circle(
-		vus.screen, zone.color,
-		(x ,y),
-		vus.zoom * (30 + zone_surface), width=0)
-	pygame.draw.circle(
-		vus.screen, (222,222,10),
-		(x,y),
-		vus.zoom * (50 + zone_surface), width=4)
-	font.render_to(vus.screen, (x- (rec.width // 2), y + int((zone_surface +55) * vus.zoom)),zone.name,(255,255,255))
+def draw_zone(zone: Zone, vus: Visualizer) -> None:
+    zone_surface = (zone.max_drones * 5) + 1
+    x, y = vus.Calcul_XY(zone.cordi[0], zone.cordi[1])
+    if y < 40 or y > vus.height + 100 or x < 45 or x > vus.width + 100:
+        return
+    font = freetype.SysFont("Arial", int(15 * vus.zoom), bold=True)
+    rec = font.get_rect(zone.name, size=15 * vus.zoom)
+    pygame.draw.circle(vus.screen, zone.color, (x, y), vus.zoom * (30 + zone_surface), width=0)
+    pygame.draw.circle(vus.screen, (222, 222, 10), (x, y), vus.zoom * (50 + zone_surface), width=4)
+    font.render_to(vus.screen, (x - (rec.width // 2), y + int((zone_surface + 55) * vus.zoom)), zone.name, (255, 255, 255))
 
 
-def loop(vus: Visualizer):
-	dragging = False
-	current_xy = ()
-	while vus.run:
-		vus.screen.fill((0,0,0))
-		events = pygame.event.get()
-		for event in events:
-			if event.type == pygame.QUIT:
-				vus.run = False
-			if event.type == pygame.MOUSEWHEEL:
-				if event.y > 0:
-					vus.zoom *= 1.1
-				elif event.y <= 0 and vus.zoom >= 0.08:
-					vus.zoom /= 1.1
-				# print("zoom:",vus.zoom)
-			if event.type == pygame.MOUSEBUTTONDOWN:
-					dragging = True
-			if event.type == pygame.MOUSEBUTTONUP:
-					dragging = False
-			if event.type == pygame.MOUSEMOTION and dragging:
-				vus.offset_x += event.rel[0]
-				vus.offset_y += event.rel[1]
-		
-		
-		gred(vus)
-		draw_connection(vus)
-		for z in vus.zones.values():
-			draw_zone(z, vus)
-		pygame.draw.rect(vus.screen, (92,92,92),rect= (0,0,vus.width,54),border_top_left_radius=5,border_top_right_radius=5)
-		font = freetype.SysFont("Arial", 40, bold=True)
-		font.render_to(vus.screen, (1050,10), f"turn: {vus.turns}",(222,0,0))
-		#pygame.draw.rect(screen, (0,0,0),rect= (0,54,width,height - 54),border_bottom_left_radius=5,border_bottom_right_radius=5)
-		pygame_widgets.update(events)
-		vus.dropdown.draw()
-		vus.button_run.draw()
-		vus.button_run_step.draw()
-		vus.button_reload.draw()
-		vus.button_close.draw()
-		if vus.drones[-1].localIndex < len(vus.drones[-1].path) - 2 and not vus.auto_run:
-			vus.button_run_step.onClick = vus.Movedrones
-		vus.button_run.onClick = vus.Run
-		if vus.auto_run and not vus.move:
-			vus.Movedrones()
+def loop(vus: Visualizer) -> None:
+    dragging = False
+    while vus.run:
+        vus.screen.fill((0, 0, 0))
+        events = pygame.event.get()
+        for event in events:
+            if event.type == pygame.QUIT:
+                vus.run = False
+            if event.type == pygame.MOUSEWHEEL:
+                if event.y > 0:
+                    vus.zoom *= 1.1
+                elif event.y <= 0 and vus.zoom >= 0.08:
+                    vus.zoom /= 1.1
 
-		
-		move_drone(vus)
-		draw_drone(vus)
-		# vus.drones[0].localIndex = 0
-		# for i in vus.drones[0].path[2:]:
-		# 	vus.drones[0].Move()
-		#clock.tick(30)
-		# pygame_widgets.draw(screen)
-		pygame.display.update()
-	pygame.quit()
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                dragging = True
+            if event.type == pygame.MOUSEBUTTONUP:
+                dragging = False
+            if event.type == pygame.MOUSEMOTION and dragging:
+                dx, dy = event.rel
+                vus.offset_x += dx
+                vus.offset_y += dy
 
+                for drone in vus.drones:
+                    if drone.localXY:
+                        drone.localXY = (drone.localXY[0] + dx, drone.localXY[1] + dy)
 
+        gred(vus)
+        draw_connection(vus)
+        for z in vus.zones.values():
+            draw_zone(z, vus)
+            
+        pygame.draw.rect(vus.screen, (92, 92, 92), rect=(0, 0, vus.width, 54), border_top_left_radius=5, border_top_right_radius=5)
+        font = freetype.SysFont("Arial", 40, bold=True)
+        font.render_to(vus.screen, (1050, 10), f"turn: {vus.turns}", (222, 0, 0))
+        
+        pygame_widgets.update(events)
+        if vus.dropdown.getSelected() is not None and  vus.selected_map != vus.dropdown.getSelected():
+            vus.selected_map = vus.dropdown.getSelected()
+            vus.load_map()
+        vus.dropdown.draw()
+        vus.button_run.draw()
+        vus.button_run_step.draw()
+        vus.button_reload.draw()
+        vus.button_close.draw()
+        
+        vus.button_run_step.onClick = vus.Movedrones
+        vus.button_run.onClick = vus.Run
 
+        if vus.auto_run and not vus.move:
+            vus.Movedrones()
 
+        move_drone(vus)
+        draw_drone(vus)
 
+        pygame.display.update()
+        pygame.display.flip()
+        clock.tick(20)
 
-
-
-
-
-
+    pygame.quit()

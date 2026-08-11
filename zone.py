@@ -11,6 +11,7 @@ class Zone():
 		self.color = None
 		self.zone = "normal"
 		self.closed = False
+		self.counter = 0
 		self.connection = []
 
 
