@@ -1,7 +1,7 @@
 from parser import syntax_parser
 from zone import create_zones , Zone
 from visualizer import loop, Drone, Visualizer
-
+from drone import Drone
 
 
 
@@ -131,35 +131,8 @@ def A_start(zones, start, end, turns):
 # paths = simulation(zones, start, end, nb_drons)
 # drones = Create_drones(nb_drons, paths)
 
-def print_simulation_output(drones):
-    print("\n--- Simulation Output ---")
-    max_turns = max(len(d.path) for d in drones if d.path)
-    
-    for t in range(1, max_turns):
-        movements = []
-        for drone in drones:
-            if not drone.path or t >= len(drone.path):
-                continue
-            
-            curr_zone = drone.path[t]
-            prev_zone = drone.path[t-1]
-            
-            # تجاهل إذا كانت وصلت للنهاية ووقفت هناك
-            if curr_zone is drone.end and prev_zone is drone.end:
-                continue
-            # تجاهل إذا كانت تنتظر (نفس المنطقة)
-            if curr_zone is prev_zone:
-                continue
-                
-            movements.append(f"{drone.id}-{curr_zone.name}")
-            
-        if movements:
-            print(" ".join(movements))
 
-
-
-
-data = syntax_parser("maps/01_linear_path.txt")
+data = syntax_parser("maps/linear_path.txt")
 nb_drons = data[0]['nb']
 zones = create_zones(data)
 for z in zones.values():
@@ -186,6 +159,8 @@ for i in range(nb_drons):
     drones.append(drone)
 v1 = Visualizer(zones,drones)
 loop(v1)
+
+
 
 # for p in paths:
 # 	print("[",end="")

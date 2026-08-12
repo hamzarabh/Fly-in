@@ -10,86 +10,10 @@ from typing import Any, List, Optional
 from zone import Zone
 from parser import syntax_parser
 from zone import create_zones, Zone
+from drone import Drone
 
 
 clock = pygame.time.Clock()
-
-
-class Drone:
-    def __init__(self, id: str, zones: dict, start: Zone, end: Zone) -> None:
-        self.id = id
-        self.path: List[Zone] = []
-        self.localIndex: int = 0
-        self.localXY: tuple = ()
-        self.zones = zones
-        self.start = start
-        self.end = end
-        self.image = pygame.image.load("Copilot_20260630_104836.png")
-
-    def FindPath(self) -> bool:
-        self.path = self.dijkstra()
-        if self.path is None:
-            return False
-
-        
-        # تمييز المسار المختار كـ "مزدحم" للطائرات اللاحقة
-        for zone in self.path:
-            if zone is not self.start and zone is not self.end:
-                zone.planned = getattr(zone, 'planned', 0) + 1
-        return True
-
-    def dijkstra(self) -> Optional[List[Zone]]:
-        """Simple Dijkstra algorithm with Soft Penalty."""
-        
-        # العنصر: (g, zone, path)
-        open_list: List[tuple] = [(0, self.start, [self.start])]
-        closed: set = set()
-
-        while open_list:
-            # البحث عن العنصر صاحب أقل تكلفة (g)
-            best_zone = min(open_list, key=lambda x: x[0])
-            open_list.remove(best_zone)
-
-            g, cur_zone, path = best_zone
-
-            if cur_zone is self.end:
-                return path
-
-            if cur_zone.name in closed:
-                continue
-            closed.add(cur_zone.name)
-
-            for neighbor in cur_zone.connection:
-                zone = self.zones[neighbor[0]]
-
-                if zone.zone == "normal":
-                    new_g = g + 1
-                elif zone.zone == "restricted":
-                    new_g = g + 2
-                elif zone.zone == "priority":
-                    new_g = g + 1
-                elif zone.zone == "blocked":
-                    continue
-
-                if zone.name in closed:
-                    continue
-
-                # --- العقوبة الناعمة (Soft Penalty) ---
-                planned_count = getattr(zone, 'planned', 0)
-                if planned_count > 0:
-                    new_g += planned_count * 3
-
-                if zone.zone == "priority":
-                    new_g -= 1
-                new_path = path.copy()
-                if zone.zone == "restricted":
-                    new_path.append(zone)  # إضافة مرتين للمناطق المقيدة
-                new_path.append(zone)
-
-                open_list.append((new_g, zone, new_path))
-
-        return None
-
 
 class Visualizer:
     def __init__(self, zones: list, drones: list) -> None:
@@ -180,12 +104,18 @@ class Visualizer:
         # تهيئة عداد البداية
         if self.drones:
             self.drones[0].start.counter = len(self.drones)
+        logo = pygame.image.load("logo1.png")
+        new = pygame.transform.smoothscale(logo, (200, 50))
 
+        x = self.width - new.get_width()
+        y = 0
+
+        self.screen.blit(new, (x, y))
         # --- إعداد واجهة المستخدم ---
         self.dropdown = Dropdown(
             self.screen, 0, 2, 200, 50,
             name='select map', fontSize=30, margin=20,
-            choices=['01_linear_path', '02_simple_fork', '03_basic_capacity', '01_dead_end_trap', '02_circular_loop','03_priority_puzzle','01_maze_nightmare','02_capacity_hell','03_ultimate_challenge','01_the_impossible_dream'],
+            choices=['linear_path', 'simple_fork', 'basic_capacity', 'dead_end_trap', 'circular_loop','priority_puzzle','maze_nightmare','capacity_hell','ultimate_challenge','the_impossible_dream'],
             borderRadius=5, colour=(0, 150, 100),
             textColour=(0, 0, 0), direction='down', textHAlign='centre'
         )
@@ -267,8 +197,10 @@ class Visualizer:
                 
                 drone.localIndex += 1
                 moved = True
-
+                print(f"{drone.id}-{new_zone.name}",end=" ")
+        
         if moved:
+            print("")
             self.move = True
             self.turns += 1
 
@@ -344,7 +276,9 @@ def draw_drone(vus: Visualizer) -> None:
         new = pygame.transform.rotate(new, -90)
         rect = new.get_rect()
         vus.screen.blit(new, (x - (rect.width // 2), y - (rect.height // 2)))
-        font.render_to(vus.screen, (x - 20, y - 20), drone.id, (255, 255, 255))
+        text_x = int(x - 20 * vus.zoom)
+        text_y = int(y - 15 * vus.zoom)
+        font.render_to(vus.screen, (text_x, text_y), drone.id, (255, 255, 255))
 
 
 def gred(vus: Visualizer) -> None:
