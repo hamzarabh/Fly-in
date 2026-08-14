@@ -22,20 +22,18 @@ class Drone:
         if self.path is None:
             return False
 
-        # تمييز المسار المختار كـ "مزدحم" للطائرات اللاحقة
         for zone in self.path:
             if zone is not self.start and zone is not self.end:
-                zone.planned = getattr(zone, 'planned', 0) + 1
+                zone.planned += 1
         return True
 
     def dijkstra(self) -> Any:
         """Simple Dijkstra algorithm with Soft Penalty."""
-        # العنصر: (g, zone, path)
+        # (g, zone, path)
         open_list: List[tuple] = [(0, self.start, [self.start])]
         closed: set = set()
 
         while open_list:
-            # البحث عن العنصر صاحب أقل تكلفة (g)
             best_zone = min(open_list, key=lambda x: x[0])
             open_list.remove(best_zone)
 
@@ -63,7 +61,6 @@ class Drone:
                 if zone.name in closed:
                     continue
 
-                # --- العقوبة الناعمة (Soft Penalty) ---
                 planned_count = getattr(zone, 'planned', 0)
                 if planned_count > 0:
                     new_g += planned_count * 3
@@ -72,7 +69,7 @@ class Drone:
                     new_g -= 1
                 new_path = path.copy()
                 if zone.zone == "restricted":
-                    new_path.append(zone)  # إضافة مرتين للمناطق المقيدة
+                    new_path.append(zone)
                 new_path.append(zone)
 
                 open_list.append((new_g, zone, new_path))

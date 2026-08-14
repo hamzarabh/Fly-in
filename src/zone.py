@@ -40,11 +40,14 @@ def create_zones(data: list) -> dict[Any, Any]:
             zone.type = item["type"]
             zone.name = item["name"]
             zone.cordi = (item["x"], item["y"])
-            zone.color = color_to_rgb(item["meta"].get("color"))
-            if item["meta"].get("max_drones"):
-                zone.max_drones = item["meta"]["max_drones"]
-            if item["meta"].get("zone"):
-                zone.zone = item["meta"]["zone"]
+
+            if item.get("meta"):
+                if item["meta"].get("color"):
+                    zone.color = color_to_rgb(item["meta"]["color"])
+                if item["meta"].get("max_drones"):
+                    zone.max_drones = item["meta"]["max_drones"]
+                if item["meta"].get("zone"):
+                    zone.zone = item["meta"]["zone"]
             zones[zone.name] = zone
         if item["type"] == "conection":
             if zones.get(item["zone1"]):
