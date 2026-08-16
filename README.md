@@ -19,9 +19,9 @@ make run
 ```bash
 make debug
 ```
-### Linit
+### Linting
 ```bash
-make linit
+make lint
 ```
 
 ### Output format
