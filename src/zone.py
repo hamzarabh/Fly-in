@@ -34,6 +34,7 @@ def color_to_rgb(color: str) -> tuple:
 def create_zones(data: list) -> dict[Any, Any]:
     """Create and configure zones from parsed configuration data."""
     zones = {}
+    nb_drones = data[0]['nb']
     for item in data:
         zone = Zone()
         if item["type"] in ("start_hub", "end_hub", "hub"):
@@ -48,6 +49,10 @@ def create_zones(data: list) -> dict[Any, Any]:
                     zone.max_drones = item["meta"]["max_drones"]
                 if item["meta"].get("zone"):
                     zone.zone = item["meta"]["zone"]
+            if zone.type in ("start_hub", "end_hub"):
+                zone.max_drones = nb_drones
+            if zone.type == "start_hub":
+                zone.counter = nb_drones
             zones[zone.name] = zone
         if item["type"] == "conection":
             if zones.get(item["zone1"]):

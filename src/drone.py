@@ -48,7 +48,8 @@ class Drone:
 
             for neighbor in cur_zone.connection:
                 zone = self.zones[neighbor[0]]
-
+                if neighbor[1] <= 0:
+                    continue
                 if zone.zone == "normal":
                     new_g = g + 1
                 elif zone.zone == "restricted":

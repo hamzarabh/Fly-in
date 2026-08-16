@@ -2,11 +2,16 @@ from parser import syntax_parser
 from zone import create_zones
 from visualizer import loop, Drone, Visualizer
 
+import sys
+
 
 def main() -> None:
     """Create the drones, and start the simulation."""
-
-    data = syntax_parser("maps/linear_path.txt")
+    arg = sys.argv
+    if len(arg) >= 3 and arg[1] == "--capacity-info":
+        data = syntax_parser(f"maps/{arg[2]}")
+    else:
+        data = syntax_parser("maps/linear_path.txt")
     nb_drons = data[0]['nb']
     zones = create_zones(data)
     for z in zones.values():

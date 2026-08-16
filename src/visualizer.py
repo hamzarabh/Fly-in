@@ -75,32 +75,28 @@ class Visualizer:
         """
         # تهيئة counter و planned لكل المناطق
         for z in self.zones.values():
-            z.counter = 0
+            if z.type == "start_hub":
+                z.counter = len(self.drones)
+            else:
+                z.counter = 0
             z.planned = 0
 
-        # --- الخطوة 1: البحث عن أفضل 3 مسارات باستخدام طائرات استكشافية ---
-        scout_paths: List[List[Zone]] = []
+        paths: List[List[Zone]] = []
         for i in range(2):
             scout_drone = Drone(
                 f"scout{i}", self.zones, self.drones[0].start,
                 self.drones[0].end)
             if scout_drone.FindPath():
-                scout_paths.append(scout_drone.path)
+                paths.append(scout_drone.path)
             else:
-                break  # إذا لم يجد مساراً آخر، نتوقف
+                break
 
-        # تصفير العقوبات قبل بدء المحاكاة الحقيقية
-        for z in self.zones.values():
-            z.planned = 0
-
-        # --- الخطوة 2: توزيع الطائرات الحقيقية على المسارات بالتناوب ---
-        if scout_paths:
-            path_idx: int = 0  # يبدأ بالمسار الأول
-            num_paths: int = len(scout_paths)
+        if paths:
+            path_idx: int = 0
+            num_paths: int = len(paths)
 
             for drone in self.drones:
-                # إعطاء المسار الحالي للطائرة
-                drone.path = scout_paths[path_idx].copy()
+                drone.path = paths[path_idx]
                 drone.localIndex = 0
                 drone.localXY = self.Calcul_XY(
                     drone.path[0].cordi[0],
@@ -111,14 +107,16 @@ class Visualizer:
 
                 if path_idx >= num_paths:
                     path_idx = 0
+        else:
+            print("Error: not path in this grafe")
+            exit(1)
 
-        # تهيئة عداد البداية
-        if self.drones:
-            self.drones[0].start.counter = len(self.drones)
-        # --- إعداد واجهة المستخدم ---
+        # if self.drones:
+        #     self.drones[0].start.counter = len(self.drones)
+
         self.dropdown = Dropdown(
             self.screen, 0, 10, 200, 30,
-            name='select map', fontSize=30, margin=20,
+            name='Select map', fontSize=30,
             choices=['linear_path', 'simple_fork', 'basic_capacity',
                      'dead_end_trap', 'circular_loop',
                      'priority_puzzle', 'maze_nightmare', 'capacity_hell',
@@ -130,21 +128,21 @@ class Visualizer:
 
         self.button_run = Button(
             self.screen, 210, 10, 200, 30,
-            text='Run', fontSize=20, margin=20,
+            text='Run', fontSize=20,
             inactiveColour=(58, 115, 220),
             pressedColour=(255, 153, 51), radius=5,
         )
 
         self.button_run_step = Button(
             self.screen, 420, 10, 200, 30,
-            text='Run step', fontSize=20, margin=20,
+            text='Run step', fontSize=20,
             inactiveColour=(58, 115, 220),
             pressedColour=(255, 153, 51), radius=5,
         )
 
         self.button_reload = Button(
             self.screen, 630, 10, 200, 30,
-            text='Reload', fontSize=20, margin=20,
+            text='Reload', fontSize=20,
             inactiveColour=(58, 115, 220),
             pressedColour=(255, 153, 51), radius=5,
             onClick=self.reload
@@ -190,32 +188,26 @@ class Visualizer:
                     moved = True
                     continue
 
-                # البحث عن سعة الاتصال بشكل صحيح
                 max_link_capacity = 1
                 for zone_name, capacity in old_zone.connection:
                     if zone_name == new_zone.name:
                         max_link_capacity = capacity
                         break
 
-                # التحقق من سعة المنطقة الوجهة
                 if new_zone is not drone.end and new_zone is not drone.start:
                     if getattr(new_zone, 'counter', 0) >= new_zone.max_drones:
-                        continue  # المنطقة ممتلئة، انتظر
+                        continue
 
-                # التحقق من سعة الاتصال
                 if (link_capacity.get((old_zone.name, new_zone.name), 0) >=
                         max_link_capacity):
                     continue
-                # الاتصال ممتلئ، انتظر
 
-                # تسجيل استخدام الاتصال في هذا الدور
                 key = (old_zone.name, new_zone.name)
                 link_capacity[key] = link_capacity.get(
                     (old_zone.name, new_zone.name), 0) + 1
 
-                # تحديث العدادات
-                old_zone.counter = getattr(old_zone, 'counter', 0) - 1
-                new_zone.counter = getattr(new_zone, 'counter', 0) + 1
+                old_zone.counter -= 1
+                new_zone.counter += 1
 
                 drone.localIndex += 1
                 moved = True
@@ -241,12 +233,12 @@ class Visualizer:
         self.auto_run = True
 
 
-def move_drone(vus: Visualizer) -> None:
+def move_drone(vis: Visualizer) -> None:
     """Move drones smoothly toward their current target positions."""
     finished: bool = True
     speed: int = 10
 
-    for drone in vus.drones:
+    for drone in vis.drones:
         if not drone.path:
             continue
 
@@ -254,12 +246,12 @@ def move_drone(vus: Visualizer) -> None:
         if local >= len(drone.path):
             local = len(drone.path) - 1
 
-        target_x, target_y = vus.Calcul_XY(
+        target_x, target_y = vis.Calcul_XY(
             drone.path[local].cordi[0],
             drone.path[local].cordi[1]
         )
 
-        if not vus.move:
+        if not vis.move:
             drone.localXY = (target_x, target_y)
             continue
 
@@ -285,88 +277,87 @@ def move_drone(vus: Visualizer) -> None:
             finished = False
 
     if finished:
-        vus.move = False
+        vis.move = False
 
 
-def draw_drone(vus: Visualizer) -> None:
+def draw_drone(vis: Visualizer) -> None:
     """Draw all active drones on the visualization screen."""
-    for drone in vus.drones:
+    for drone in vis.drones:
         if not drone.path or not drone.localXY:
             continue
 
         x, y = drone.localXY
-        if y < 60 or y > vus.height + 100 or x < 45 or x > vus.width + 100:
+        if y < 60 or y > vis.height + 100 or x < 45 or x > vis.width + 100:
             continue
-        font: Any = freetype.SysFont("Arial", int(15 * vus.zoom), bold=True)
-        new: Any = pygame.transform.smoothscale(
-            drone.image, (int(60 * vus.zoom), int(100 * vus.zoom)))
-        new = pygame.transform.rotate(new, -90)
-        rect: Any = new.get_rect()
-        vus.screen.blit(new, (x - (rect.width // 2), y - (rect.height // 2)))
-        text_x: int = int(x - 20 * vus.zoom)
-        text_y: int = int(y - 15 * vus.zoom)
-        font.render_to(vus.screen, (text_x, text_y), drone.id, (255, 255, 255))
+        font: Any = freetype.SysFont("Arial", int(15 * vis.zoom), bold=True)
+        image: Any = pygame.transform.smoothscale(
+            drone.image, (int(60 * vis.zoom), int(100 * vis.zoom)))
+        image = pygame.transform.rotate(image, -90)
+        rect: Any = image.get_rect()
+        vis.screen.blit(image, (x - (rect.width // 2), y - (rect.height // 2)))
+        text_x: int = int(x - 20 * vis.zoom)
+        text_y: int = int(y - 15 * vis.zoom)
+        font.render_to(vis.screen, (text_x, text_y), drone.id, (255, 255, 255))
 
 
-def gred(vus: Visualizer) -> None:
+def gred(vis: Visualizer) -> None:
     """Draw the background grid of the visualization."""
-    x1, y1, x2, y2 = 0, 54, 0, vus.height
+    x1, y1, x2, y2 = 0, 54, 0, vis.height
 
-    for _ in range(0, vus.width, 50):
+    for _ in range(0, vis.width, 50):
         x1 += 50
         x2 += 50
-        pygame.draw.line(vus.screen, (50, 50, 50), (x1, y1), (x2, y2))
-    x1, y1, x2, y2 = 0, 54, vus.width, 54
-    for _ in range(0, vus.height, 50):
+        pygame.draw.line(vis.screen, (50, 50, 50), (x1, y1), (x2, y2))
+    x1, y1, x2, y2 = 0, 54, vis.width, 54
+    for _ in range(0, vis.height, 50):
         y1 += 50
         y2 += 50
-        pygame.draw.line(vus.screen, (50, 50, 50), (x1, y1), (x2, y2))
+        pygame.draw.line(vis.screen, (50, 50, 50), (x1, y1), (x2, y2))
 
 
-def draw_connection(vus: Visualizer) -> None:
+def draw_connection(vis: Visualizer) -> None:
     """Draw connections between all connected zones."""
-    for zone in vus.zones.values():
-        x, y = vus.Calcul_XY(zone.cordi[0], zone.cordi[1])
-        if y < 40 or y > vus.height + 100 or x < 45 or x > vus.width + 100:
+    for zone in vis.zones.values():
+        x, y = vis.Calcul_XY(zone.cordi[0], zone.cordi[1])
+        if y < 40 or y > vis.height + 100 or x < 45 or x > vis.width + 100:
             continue
         for z_conn in zone.connection:
-            x2, y2 = vus.Calcul_XY(
-                vus.zones[z_conn[0]].cordi[0], vus.zones[z_conn[0]].cordi[1])
-            pygame.draw.line(vus.screen, (150, 150, 255), (x, y), (x2, y2), 5)
+            x2, y2 = vis.Calcul_XY(
+                vis.zones[z_conn[0]].cordi[0], vis.zones[z_conn[0]].cordi[1])
+            pygame.draw.line(vis.screen, (150, 150, 255), (x, y), (x2, y2), 5)
 
 
-def draw_zone(zone: Zone, vus: Visualizer) -> None:
+def draw_zone(zone: Zone, vis: Visualizer) -> None:
     """Draw a zone and its name on the visualization screen."""
-    zone_surface: int = (zone.max_drones * 5) + 1
-    x, y = vus.Calcul_XY(zone.cordi[0], zone.cordi[1])
-    if y < 40 or y > vus.height + 100 or x < 45 or x > vus.width + 100:
+    x, y = vis.Calcul_XY(zone.cordi[0], zone.cordi[1])
+    if y < 40 or y > vis.height + 100 or x < 45 or x > vis.width + 100:
         return
-    font: Any = freetype.SysFont("Arial", int(15 * vus.zoom), bold=True)
-    rec: Any = font.get_rect(zone.name, size=15 * vus.zoom)
-    pygame.draw.circle(vus.screen, zone.color, (x, y),
-                       vus.zoom * (30 + zone_surface), width=0)
-    pygame.draw.circle(vus.screen, (222, 222, 10), (x, y),
-                       vus.zoom * (50 + zone_surface), width=4)
-    font.render_to(vus.screen, (x - (rec.width // 2), y +
-                   int((zone_surface + 55) * vus.zoom)),
+    font: Any = freetype.SysFont("Arial", int(15 * vis.zoom), bold=True)
+    rec: Any = font.get_rect(zone.name, size=15 * vis.zoom)
+    pygame.draw.circle(vis.screen, zone.color, (x, y),
+                       vis.zoom * 30, width=0)
+    pygame.draw.circle(vis.screen, (222, 222, 10), (x, y),
+                       vis.zoom * 50, width=4)
+    font.render_to(vis.screen, (x - (rec.width // 2), y +
+                   int(55 * vis.zoom)),
                    zone.name, (255, 255, 255))
 
 
-def loop(vus: Visualizer) -> None:
+def loop(vis: Visualizer) -> None:
     """Run the main Pygame event and simulation loop."""
     dragging: bool = False
     pygame.display.set_caption("Fly-in")
-    while vus.run:
-        vus.screen.fill((0, 0, 0))
+    while vis.run:
+        vis.screen.fill((0, 0, 0))
         events: Any = pygame.event.get()
         for event in events:
             if event.type == pygame.QUIT:
-                vus.run = False
+                vis.run = False
             if event.type == pygame.MOUSEWHEEL:
                 if event.y > 0:
-                    vus.zoom *= 1.1
-                elif event.y <= 0 and vus.zoom >= 0.08:
-                    vus.zoom /= 1.1
+                    vis.zoom *= 1.1
+                elif event.y <= 0 and vis.zoom >= 0.08:
+                    vis.zoom /= 1.1
 
             if event.type == pygame.MOUSEBUTTONDOWN:
                 dragging = True
@@ -374,53 +365,49 @@ def loop(vus: Visualizer) -> None:
                 dragging = False
             if event.type == pygame.MOUSEMOTION and dragging:
                 dx, dy = event.rel
-                vus.offset_x += dx
-                vus.offset_y += dy
+                vis.offset_x += dx
+                vis.offset_y += dy
 
-                for drone in vus.drones:
+                for drone in vis.drones:
                     if drone.localXY:
                         drone.localXY = (
                             drone.localXY[0] + dx, drone.localXY[1] + dy)
 
-        gred(vus)
-        draw_connection(vus)
-        for z in vus.zones.values():
-            draw_zone(z, vus)
+        gred(vis)
+        draw_connection(vis)
+        for z in vis.zones.values():
+            draw_zone(z, vis)
 
-        pygame.draw.rect(vus.screen, (92, 92, 92), rect=(
-            0, 0, vus.width, 54), border_top_left_radius=5,
-            border_top_right_radius=5)
-        vus.screen.blit(vus.logo, (vus.width - 360, -100))
+        pygame.draw.rect(vis.screen, (92, 92, 92), rect=(
+            0, 0, vis.width, 54))
+        vis.screen.blit(vis.logo, (vis.width - 360, -100))
 
-        # font = freetype.SysFont("Arial", 40, bold=True)
-        # font.render_to(vus.screen, (1050, 10), f"turn:
-        #  {vus.turns}", (222, 0, 0))
         font: Any = freetype.SysFont("Arial", 40, bold=True)
-        font.render_to(vus.screen, (1050, 10),
-                       f"Turn: {vus.turns}", (255, 153, 51))
+        font.render_to(vis.screen, (1050, 10),
+                       f"Turn: {vis.turns}", (255, 153, 51))
 
         pygame_widgets.update(events)
-        if (vus.dropdown.getSelected() is not None and
-                vus.selected_map != vus.dropdown.getSelected()):
-            vus.selected_map = vus.dropdown.getSelected()
-            vus.load_map()
-        vus.dropdown.draw()
-        vus.button_run.draw()
-        vus.button_run_step.draw()
-        vus.button_reload.draw()
-        vus.button_close.draw()
+        if (vis.dropdown.getSelected() is not None and
+                vis.selected_map != vis.dropdown.getSelected()):
+            vis.selected_map = vis.dropdown.getSelected()
+            vis.load_map()
+        vis.dropdown.draw()
+        vis.button_run.draw()
+        vis.button_run_step.draw()
+        vis.button_reload.draw()
+        vis.button_close.draw()
 
-        vus.button_run_step.onClick = vus.Movedrones
-        vus.button_run.onClick = vus.Run
+        vis.button_run_step.onClick = vis.Movedrones
+        vis.button_run.onClick = vis.Run
 
-        if vus.auto_run and not vus.move:
-            vus.Movedrones()
+        if vis.auto_run and not vis.move:
+            vis.Movedrones()
 
-        move_drone(vus)
-        draw_drone(vus)
+        move_drone(vis)
+        draw_drone(vis)
 
         pygame.display.update()
         pygame.display.flip()
-        clock.tick(20)
+        clock.tick(40)
 
     pygame.quit()
